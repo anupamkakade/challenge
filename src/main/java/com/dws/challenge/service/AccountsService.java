@@ -43,15 +43,34 @@ public class AccountsService {
     if (sourceAccount.getBalance().compareTo(amount) < 0) {
       throw new InsufficientFundInAccountException("Insufficient fund in  source account");
     }
-    // Can use AtomicReference class for thread safe operation as it uses internal thread synchronization.
-    synchronized (this) {
-      sourceAccount.setBalance(sourceAccount.getBalance().subtract(amount));
-      targetAccount.setBalance(targetAccount.getBalance().add(amount));
-      accountsRepository.saveAccount(sourceAccount);
-      accountsRepository.saveAccount(targetAccount);
-      notificationService.notifyAboutTransfer(sourceAccount,String.format("You have transferred $%.2f to account %s", amount, targetAccountId));
-      notificationService.notifyAboutTransfer(targetAccount,String.format("You have received $%.2f from account %s", amount, sourceAccountId));
+    /*
+      Ordering of lock is crucial to prevent deadlocks.
+      The below code ensures that all threads acquire locks in the same order across all transfers.
+      Other approach to get the lock  at more fine grained level is to use ReentrantLock
+     */
+    if(sourceAccountId.compareTo(targetAccountId) > 0) {
+      synchronized (sourceAccount) {
+        synchronized (targetAccount) {
+          doTransfer(sourceAccount,targetAccount,amount);
+        }
+      }
+    } else {
+      synchronized (targetAccount) {
+        synchronized (sourceAccount) {
+          doTransfer(targetAccount,sourceAccount,amount);
+        }
+      }
     }
+
     return response;
+  }
+
+  public void doTransfer(Account sourceAccount, Account targetAccount, BigDecimal amount) {
+    sourceAccount.setBalance(sourceAccount.getBalance().subtract(amount));
+    targetAccount.setBalance(targetAccount.getBalance().add(amount));
+    accountsRepository.saveAccount(sourceAccount);
+    accountsRepository.saveAccount(targetAccount);
+    notificationService.notifyAboutTransfer(sourceAccount, String.format("You have transferred $%.2f to account %s", amount, targetAccount.getAccountId()));
+    notificationService.notifyAboutTransfer(targetAccount, String.format("You have received $%.2f from account %s", amount, sourceAccount.getAccountId()));
   }
 }
