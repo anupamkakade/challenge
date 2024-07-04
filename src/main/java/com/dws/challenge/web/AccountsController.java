@@ -60,7 +60,7 @@ public class AccountsController {
     try {
       // Check if the source and target accounts are not same
       validateAccount(request);
-      var response = accountsService.transferMoney(request.sourceAccountId(), request.destinationAccountId(), request.amount());
+      var response = accountsService.transferMoney(request);
       return ResponseEntity.ok(response);
     } catch (InsufficientFundInAccountException e) {
       return ResponseEntity.badRequest().body(new TransferResponse(request.sourceAccountId(), request.destinationAccountId(), request.amount(),e.getMessage()));

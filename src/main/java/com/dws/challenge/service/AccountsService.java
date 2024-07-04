@@ -1,6 +1,7 @@
 package com.dws.challenge.service;
 
 import com.dws.challenge.domain.Account;
+import com.dws.challenge.dto.TransferRequest;
 import com.dws.challenge.dto.TransferResponse;
 import com.dws.challenge.exception.InsufficientFundInAccountException;
 import com.dws.challenge.repository.AccountsRepository;
@@ -34,14 +35,18 @@ public class AccountsService {
   }
 
 
-  public TransferResponse transferMoney(String sourceAccountId, String targetAccountId, BigDecimal amount) throws InsufficientFundInAccountException {
+  public TransferResponse transferMoney(TransferRequest request) throws InsufficientFundInAccountException {
 
+    String sourceAccountId = request.sourceAccountId();
+    String targetAccountId = request.destinationAccountId();
+    BigDecimal amount = request.amount();
     TransferResponse response = new TransferResponse(sourceAccountId,targetAccountId,amount,"Successfull Transfer");
     Account sourceAccount = accountsRepository.getAccount(sourceAccountId);
     Account targetAccount = accountsRepository.getAccount(targetAccountId);
-
-    if (sourceAccount.getBalance().compareTo(amount) < 0) {
-      throw new InsufficientFundInAccountException("Insufficient fund in  source account");
+    synchronized (sourceAccountId) {
+      if (sourceAccount.getBalance().compareTo(amount) < 0) {
+        throw new InsufficientFundInAccountException("Insufficient fund in  source account");
+      }
     }
     /*
       Ordering of lock is crucial to prevent deadlocks.
@@ -49,14 +54,14 @@ public class AccountsService {
       Other approach to get the lock  at more fine grained level is to use ReentrantLock
      */
     if(sourceAccountId.compareTo(targetAccountId) > 0) {
-      synchronized (sourceAccount) {
-        synchronized (targetAccount) {
+      synchronized (sourceAccountId) {
+        synchronized (targetAccountId) {
           doTransfer(sourceAccount,targetAccount,amount);
         }
       }
     } else {
-      synchronized (targetAccount) {
-        synchronized (sourceAccount) {
+      synchronized (targetAccountId) {
+        synchronized (sourceAccountId) {
           doTransfer(targetAccount,sourceAccount,amount);
         }
       }
