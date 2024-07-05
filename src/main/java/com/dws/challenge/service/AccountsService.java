@@ -35,7 +35,7 @@ public class AccountsService {
   }
 
 
-  public TransferResponse transferMoney(TransferRequest request) throws InsufficientFundInAccountException {
+  public TransferResponse transferMoney(TransferRequest request)  {
 
     String sourceAccountId = request.sourceAccountId();
     String targetAccountId = request.destinationAccountId();
@@ -43,11 +43,7 @@ public class AccountsService {
     TransferResponse response = new TransferResponse(sourceAccountId,targetAccountId,amount,"Successfull Transfer");
     Account sourceAccount = accountsRepository.getAccount(sourceAccountId);
     Account targetAccount = accountsRepository.getAccount(targetAccountId);
-    synchronized (sourceAccountId) {
-      if (sourceAccount.getBalance().compareTo(amount) < 0) {
-        throw new InsufficientFundInAccountException("Insufficient fund in  source account");
-      }
-    }
+
     /*
       Ordering of lock is crucial to prevent deadlocks.
       The below code ensures that all threads acquire locks in the same order across all transfers.
@@ -70,7 +66,10 @@ public class AccountsService {
     return response;
   }
 
-  public void doTransfer(Account sourceAccount, Account targetAccount, BigDecimal amount) {
+  public void doTransfer(Account sourceAccount, Account targetAccount, BigDecimal amount) throws InsufficientFundInAccountException {
+    if (sourceAccount.getBalance().compareTo(amount) < 0) {
+      throw new InsufficientFundInAccountException("Insufficient fund in  source account");
+    }
     sourceAccount.setBalance(sourceAccount.getBalance().subtract(amount));
     targetAccount.setBalance(targetAccount.getBalance().add(amount));
     accountsRepository.saveAccount(sourceAccount);
